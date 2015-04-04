@@ -2,20 +2,23 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
-	"github.com/satori/go.uuid"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/satori/go.uuid"
 )
 
-var gn_namespace uuid.UUID
+var gnNamespace uuid.UUID
+var url string
 
 func namespace() uuid.UUID {
-	if gn_namespace.String() == "00000000-0000-0000-0000-000000000000" {
-		gn_namespace = uuid.NewV5(uuid.NamespaceDNS, "globalnames.org")
+	if gnNamespace.String() == "00000000-0000-0000-0000-000000000000" {
+		gnNamespace = uuid.NewV5(uuid.NamespaceDNS, "globalnames.org")
 	}
-	return gn_namespace
+	return gnNamespace
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -28,18 +31,18 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func uuids(w http.ResponseWriter, input string) {
-	name_strings := split_names(input)
+	nameStrings := splitNames(input)
 	var buffer bytes.Buffer
 	buffer.WriteString("[\n")
-	length := len(name_strings) - 1
-	for i := range name_strings {
-		gn_uuid := uuid.NewV5(namespace(), name_strings[i])
+	length := len(nameStrings) - 1
+	for i := range nameStrings {
+		gnUUID := uuid.NewV5(namespace(), nameStrings[i])
 		buffer.WriteString("  {\n")
 		buffer.WriteString("    \"name_string\": \"")
-		buffer.WriteString(name_strings[i])
+		buffer.WriteString(nameStrings[i])
 		buffer.WriteString("\",\n")
 		buffer.WriteString("    \"uuid\": \"")
-		buffer.WriteString(gn_uuid.String())
+		buffer.WriteString(gnUUID.String())
 		if length == i {
 			buffer.WriteString("\"\n  }\n")
 		} else {
@@ -51,20 +54,27 @@ func uuids(w http.ResponseWriter, input string) {
 }
 
 func instructions(w http.ResponseWriter) {
-	url := os.Args[1]
 	fmt.Fprintf(w, "Enter name string in url like \"%s/Homo%%20sapiens\"\n", url)
-	fmt.Fprintf(w, "Or enter serversl name strings divided by pipe character like \"%s/Homo%%20sapiens%%7CPardosa%%20moesta%%7CParus%%20major%%20(Linnaeus,%%201758)\"\n", url)
+	fmt.Fprintf(w, "Or enter serveral name strings divided by pipe character like \"%s/Homo%%20sapiens%%7CPardosa%%20moesta%%7CParus%%20major%%20(Linnaeus,%%201758)\"\n", url)
 }
 
-func split_names(input string) []string {
+func splitNames(input string) []string {
 	f := func(c rune) bool {
-		var pipe rune = '|'
+		pipe := '|'
 		return c == pipe
 	}
 	return strings.FieldsFunc(input, f)
 }
 
 func main() {
+	portPtr := flag.String("port", "8080", "Port to run the server")
+	urlPtr := flag.String("url", "http://localhost", "URL to show in help")
+	flag.Parse()
+	port := ":" + *portPtr
+	url = *urlPtr
+	fmt.Printf("Server started at %s%s\n\n", url, port)
+	fmt.Print("To change url, port use flags:\n\n")
+	fmt.Printf("  %s --port 80 --url http://your_url", os.Args[0])
 	http.HandleFunc("/", handler)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(port, nil)
 }
