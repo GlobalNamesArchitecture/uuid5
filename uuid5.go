@@ -1,80 +1,69 @@
-package main
+// Package uuid5 creates UUID v5 in DNS globalnames.org namespace
+package uuid5
 
 import (
-	"bytes"
-	"flag"
-	"fmt"
-	"net/http"
-	"os"
 	"strings"
 
 	"github.com/satori/go.uuid"
 )
 
-var gnNamespace uuid.UUID
-var url string
+var gnNamespace = uuid.NewV5(uuid.NamespaceDNS, "globalnames.org")
 
-func namespace() uuid.UUID {
-	if gnNamespace.String() == "00000000-0000-0000-0000-000000000000" {
-		gnNamespace = uuid.NewV5(uuid.NamespaceDNS, "globalnames.org")
+// UUID5 returns UUID version 5 generated from a string
+func UUID5(input string) uuid.UUID {
+	return uuid.NewV5(gnNamespace, normalizeName(input))
+}
+
+// UUID5s returns array of UUIDs v5 generated from an array of strings
+func UUID5s(input []string) []uuid.UUID {
+	uuids := make([]uuid.UUID, len(input))
+	for i := range input {
+		uuids[i] = UUID5(input[i])
 	}
-	return gnNamespace
+	return uuids
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	input := r.URL.Path[1:]
-	if input == "" {
-		instructions(w)
-	} else {
-		uuids(w, input)
+// String converts one UUID5 to its string representation
+func String(uuid uuid.UUID) string {
+	return uuid.String()
+}
+
+// Strings converts array of UUIDs to their string representation
+func Strings(uuids []uuid.UUID) []string {
+	uuidStrings := make([]string, len(uuids))
+	for i := range uuids {
+		uuidStrings[i] = uuids[i].String()
 	}
+	return uuidStrings
 }
 
-func uuids(w http.ResponseWriter, input string) {
-	nameStrings := splitNames(input)
-	var buffer bytes.Buffer
-	buffer.WriteString("[\n")
-	length := len(nameStrings) - 1
-	for i := range nameStrings {
-		gnUUID := uuid.NewV5(namespace(), nameStrings[i])
-		buffer.WriteString("  {\n")
-		buffer.WriteString("    \"name_string\": \"")
-		buffer.WriteString(nameStrings[i])
-		buffer.WriteString("\",\n")
-		buffer.WriteString("    \"uuid\": \"")
-		buffer.WriteString(gnUUID.String())
-		if length == i {
-			buffer.WriteString("\"\n  }\n")
-		} else {
-			buffer.WriteString("\"\n  },\n")
-		}
+// PipeDelimited takes names separated by | and returns their UUID5
+func PipeDelimited(pipeDelim string) []uuid.UUID {
+	return delimited(pipeDelim, 0x007C) // = '|'
+}
+
+// NewLineDelimited takes names separated by \n (line feed) and returns
+// their UUID5
+func NewLineDelimited(newLineDelim string) []uuid.UUID {
+	return delimited(newLineDelim, 0x000A) // = "\n"
+}
+
+func delimited(delimited string, delim rune) []uuid.UUID {
+	names := splitNames(delimited, delim)
+	uuids := make([]uuid.UUID, len(names))
+	for i := range names {
+		uuids[i] = UUID5(names[i])
 	}
-	buffer.WriteString("]")
-	fmt.Fprintf(w, buffer.String())
+	return uuids
 }
 
-func instructions(w http.ResponseWriter) {
-	fmt.Fprintf(w, "Enter name string in url like \"%s/Homo%%20sapiens\"\n", url)
-	fmt.Fprintf(w, "Or enter serveral name strings divided by pipe character like \"%s/Homo%%20sapiens%%7CPardosa%%20moesta%%7CParus%%20major%%20(Linnaeus,%%201758)\"\n", url)
-}
-
-func splitNames(input string) []string {
-	f := func(c rune) bool {
-		pipe := '|'
-		return c == pipe
+func splitNames(input string, delim rune) []string {
+	f := func(ch rune) bool {
+		return ch == delim
 	}
 	return strings.FieldsFunc(input, f)
 }
 
-func main() {
-	portPtr := flag.String("port", "8080", "Port to run the server")
-	urlPtr := flag.String("url", "http://localhost", "URL to show in help")
-	flag.Parse()
-	port := ":" + *portPtr
-	url = *urlPtr
-	fmt.Printf("Server started at %s%s\n\n", url, port)
-	fmt.Print("To change url, port use flags:\n\n")
-	fmt.Printf("  %s --port 80 --url http://your_url", os.Args[0])
-	http.HandleFunc("/", handler)
-	http.ListenAndServe(port, nil)
+func normalizeName(name string) string {
+	return strings.TrimSpace(name)
 }

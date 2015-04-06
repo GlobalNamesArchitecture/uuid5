@@ -1,5 +1,5 @@
-Global Names UUID5 Creator
-==========================
+Global Names UUID5 Generator
+============================
 
 It is a simple web server which takes strings and creates a corresponding
 UUID version 5 using DNS globalnames.org as a namespace. More information about
